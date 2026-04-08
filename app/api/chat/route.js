@@ -8,7 +8,7 @@ const rateLimitMap = new Map()
 export async function POST(req) {
   const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown'
   const now = Date.now()
-  const windowMs = 60 * 1000
+  const windowMs = 60 * 60 * 1000
 
   const entry = rateLimitMap.get(ip) ?? { count: 0, start: now }
   if (now - entry.start > windowMs) {
@@ -20,7 +20,7 @@ export async function POST(req) {
 
   if (entry.count > 20) {
     return Response.json(
-      { answer: 'Too many requests — please wait a moment and try again.' },
+      { answer: 'Too many requests — please wait before trying again.' },
       { status: 429 }
     )
   }
