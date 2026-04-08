@@ -20,7 +20,61 @@ function categorize(question) {
   return 'General'
 }
 
-export default async function Analytics() {
+export default async function Analytics({ searchParams }) {
+  const params = await searchParams
+  const analyticsPassword = process.env.ANALYTICS_PASSWORD
+  if (analyticsPassword && params?.password !== analyticsPassword) {
+    return (
+      <main style={{
+        minHeight: '100vh',
+        background: '#080810',
+        color: '#f0f0f0',
+        fontFamily: "'DM Sans', sans-serif",
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <form method="GET" style={{
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: '16px',
+          padding: '40px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          minWidth: '320px',
+        }}>
+          <p style={{ margin: 0, fontSize: '15px', fontWeight: '500' }}>Enter password to access dashboard</p>
+          <input
+            name="password"
+            type="password"
+            placeholder="Password"
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              color: '#f0f0f0',
+              fontSize: '14px',
+              outline: 'none',
+            }}
+          />
+          <button type="submit" style={{
+            background: 'rgba(99,255,180,0.1)',
+            border: '1px solid rgba(99,255,180,0.2)',
+            borderRadius: '8px',
+            padding: '10px',
+            color: '#63ffb4',
+            fontSize: '14px',
+            cursor: 'pointer',
+          }}>
+            Enter
+          </button>
+        </form>
+      </main>
+    )
+  }
+
   const { data: logs } = await supabase
     .from('query_logs')
     .select('*')
