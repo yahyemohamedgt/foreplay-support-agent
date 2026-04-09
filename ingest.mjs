@@ -6978,7 +6978,7 @@ for (const chunk of chunks) {
   await supabase.from('documents').insert({
     content: chunk,
     embedding: embedding.data[0].embedding,
-    metadata: { source: 'foreplay-api-docs' }
+    metadata: { source: 'foreplay-api-docs', client_id: 'foreplay' }
   })
 
   console.log('Embedded:', chunk.slice(0, 60))

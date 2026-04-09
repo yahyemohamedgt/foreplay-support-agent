@@ -1,4 +1,4 @@
-import { supabase } from '../../../lib/supabase'
+import { supabase, CLIENT_ID } from '../../../lib/supabase'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -39,6 +39,7 @@ export async function POST(req) {
       query_embedding: embedding,
       match_threshold: 0.2,
       match_count: 10,
+      client_id: CLIENT_ID,
     })
 
     const context = chunks?.map(c => c.content).join('\n\n') || ''
@@ -75,7 +76,8 @@ ${context}`
     await supabase.from('query_logs').insert({
       question,
       answer,
-      escalated
+      escalated,
+      client_id: CLIENT_ID,
     })
 
     if (escalated && process.env.SLACK_WEBHOOK_URL) {
