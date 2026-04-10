@@ -1,24 +1,12 @@
 import { supabase, CLIENT_ID } from '../../../lib/supabase'
-import OpenAI from 'openai'
+import { handleChat, isRateLimited } from '../../../lib/chat'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
-const rateLimitMap = new Map()
+const COMPANY_NAME = 'Foreplay'
 
 export async function POST(req) {
   const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown'
-  const now = Date.now()
-  const windowMs = 60 * 60 * 1000
 
-  const entry = rateLimitMap.get(ip) ?? { count: 0, start: now }
-  if (now - entry.start > windowMs) {
-    entry.count = 0
-    entry.start = now
-  }
-  entry.count += 1
-  rateLimitMap.set(ip, entry)
-
-  if (entry.count > 20) {
+  if (await isRateLimited(supabase, ip)) {
     return Response.json(
       { answer: 'Too many requests — please wait before trying again.' },
       { status: 429 }
@@ -28,56 +16,12 @@ export async function POST(req) {
   try {
     const { question } = await req.json()
 
-    const embeddingResponse = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: question,
-    })
-
-    const embedding = embeddingResponse.data[0].embedding
-
-    const { data: chunks } = await supabase.rpc('match_documents', {
-      query_embedding: embedding,
-      match_threshold: 0.2,
-      match_count: 10,
-      client_id: CLIENT_ID,
-    })
-
-    const context = chunks?.map(c => c.content).join('\n\n') || ''
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-content: `You are a helpful support agent for Foreplay, an ad intelligence platform.
-Answer questions using the documentation context provided below.
-Even if the context is partial or fragmented, do your best to synthesize a helpful answer from what is available.
-Only say "I don't have enough information to answer that — let me connect you with the team." if the context contains absolutely nothing relevant.
-Keep answers concise and clear.
-
-Context:
-${context}`
-        },
-        { role: 'user', content: question }
-      ],
-    })
-
-    const answer = completion.choices[0].message.content
-
-    const escalationPhrases = [
-      'let me connect you with the team',
-      "don't have enough information",
-      'contact our team',
-    ]
-    const escalated = escalationPhrases.some(phrase =>
-      answer.toLowerCase().includes(phrase.toLowerCase())
-    )
-
-    await supabase.from('query_logs').insert({
+    const { answer, escalated } = await handleChat({
+      supabase,
+      clientId: CLIENT_ID,
+      companyName: COMPANY_NAME,
       question,
-      answer,
-      escalated,
-      client_id: CLIENT_ID,
+      ip,
     })
 
     if (escalated && process.env.SLACK_WEBHOOK_URL) {
@@ -93,7 +37,7 @@ ${context}`
     }
 
     return Response.json({ answer })
-  } catch (err) {
+  } catch {
     return Response.json(
       { answer: 'Something went wrong — please try again or contact our team.' },
       { status: 500 }

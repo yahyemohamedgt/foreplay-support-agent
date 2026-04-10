@@ -32,8 +32,8 @@ export async function POST(req) {
     if (!docsText || docsText.trim().length === 0) {
       return Response.json({ error: 'Please add some documentation to index.' }, { status: 400 })
     }
-    if (docsText.length > 100000) {
-      return Response.json({ error: 'Documentation is too long. Please keep it under 100,000 characters.' }, { status: 400 })
+    if (docsText.length > 500000) {
+      return Response.json({ error: 'Documentation is too long. Please keep it under 500,000 characters.' }, { status: 400 })
     }
 
     const supabase = getSupabase()
@@ -60,22 +60,45 @@ export async function POST(req) {
       .split('\n')
       .map(c => c.trim())
       .filter(c => c.length > 80)
-      .slice(0, 300)
+      .slice(0, 1000)
 
-    let indexed = 0
-    for (const chunk of chunks) {
-      try {
-        const embeddingResponse = await openai.embeddings.create({
-          model: 'text-embedding-3-small',
-          input: chunk,
-        })
-        await supabase.from('documents').insert({
-          content: chunk,
-          embedding: embeddingResponse.data[0].embedding,
-          metadata: { source: 'trial', company: companyName, email, client_id: clientId },
-        })
-        indexed++
-      } catch (_) {}
+    const BATCH = 100
+    const batches = []
+    for (let i = 0; i < chunks.length; i += BATCH) {
+      batches.push({ start: i, items: chunks.slice(i, i + BATCH) })
+    }
+
+    const results = await Promise.all(
+      batches.map(async ({ start, items }) => {
+        try {
+          const embeddingResponse = await openai.embeddings.create({
+            model: 'text-embedding-3-small',
+            input: items,
+          })
+          const rows = items.map((content, j) => ({
+            content,
+            embedding: embeddingResponse.data[j].embedding,
+            client_id: clientId,
+            metadata: { source: 'trial', company: companyName, email, client_id: clientId },
+          }))
+          const { data: inserted, error } = await supabase.from('documents').insert(rows).select('id')
+          if (error) {
+            console.error(`[onboard] Insert failed batch ${start}-${start + items.length}:`, error.message, error.details, error.hint)
+            return 0
+          }
+          console.log(`[onboard] Inserted ${inserted?.length ?? 0} rows (batch ${start}-${start + items.length})`)
+          return inserted?.length ?? 0
+        } catch (err) {
+          console.error(`[onboard] Embedding failed for batch ${start}-${start + items.length}:`, err.message)
+          return 0
+        }
+      })
+    )
+
+    const indexed = results.reduce((sum, n) => sum + n, 0)
+
+    if (chunks.length > 0 && indexed < chunks.length * 0.5) {
+      return Response.json({ error: 'Indexing failed — please try again.' }, { status: 500 })
     }
 
     await supabase.from('trials').insert({

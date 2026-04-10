@@ -13,14 +13,19 @@ export default function DemoChat({ clientId, company }) {
     setQuestion('')
     setLoading(true)
 
-    const res = await fetch(`/api/chat/${clientId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: userMessage }),
-    })
+    try {
+      const res = await fetch(`/api/chat/${clientId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: userMessage }),
+      })
 
-    const { answer } = await res.json()
-    setMessages(prev => [...prev, { role: 'agent', content: answer }])
+      const data = await res.json()
+      const answer = data.answer || 'Something went wrong — please try again.'
+      setMessages(prev => [...prev, { role: 'agent', content: answer }])
+    } catch {
+      setMessages(prev => [...prev, { role: 'agent', content: 'Something went wrong — please try again.' }])
+    }
     setLoading(false)
   }
 
@@ -61,15 +66,17 @@ export default function DemoChat({ clientId, company }) {
 
       <div style={{ display: 'flex', gap: '10px' }}>
         <input
-          style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 16px', fontSize: '14px', color: '#f0f0f0', outline: 'none' }}
+          style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 16px', fontSize: '14px', color: '#f0f0f0', outline: 'none', opacity: loading ? 0.5 : 1 }}
           placeholder="Ask a question..."
           value={question}
           onChange={e => setQuestion(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+          onKeyDown={e => e.key === 'Enter' && !loading && handleSubmit()}
+          disabled={loading}
         />
         <button
           onClick={handleSubmit}
-          style={{ background: '#63ffb4', color: '#07070f', border: 'none', padding: '12px 22px', borderRadius: '10px', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}
+          disabled={loading}
+          style={{ background: '#63ffb4', color: '#07070f', border: 'none', padding: '12px 22px', borderRadius: '10px', fontSize: '14px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1 }}
         >
           Send
         </button>
