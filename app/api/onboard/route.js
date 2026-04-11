@@ -111,13 +111,24 @@ export async function POST(req) {
     if (process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY)
-        await resend.emails.send({
-          from: 'Triage <onboarding@triagehq.net>',
+        console.log('Attempting to send email to:', email)
+        const { data, error: resendError } = await resend.emails.send({
+          from: 'Triage <hello@triagehq.net>',
           to: email,
-          subject: 'Your Triage demo is ready',
-          text: `Hey ${companyName},\n\nYour Triage agent is live. Ask it anything:\nhttps://triagehq.net/demo/${clientId}\n\nYour trial expires in 7 days. Reply to this email if you need help.\n\n— Mohamed`,
+          subject: 'Your Triage agent is ready',
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #080810; color: #f0f0f0; padding: 40px; border-radius: 16px;">
+              <h1 style="color: #63ffb4; font-size: 24px; margin-bottom: 8px;">Your agent is live.</h1>
+              <p style="color: #aaa; margin-bottom: 24px;">Hey ${companyName} — Triage has indexed your docs and your agent is ready to answer questions.</p>
+              <a href="https://triagehq.net/demo/${clientId}" style="background: #63ffb4; color: #080810; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">Talk to your agent →</a>
+              <p style="color: #555; font-size: 12px; margin-top: 32px;">Your trial expires in 7 days. Reply to this email if you need help.<br>— Mohamed, Triage</p>
+            </div>
+          `,
         })
-      } catch (_) {}
+        console.log('Resend response:', JSON.stringify(data), JSON.stringify(resendError))
+      } catch (err) {
+        console.log('Resend error caught:', err.message)
+      }
     }
 
     return Response.json({
